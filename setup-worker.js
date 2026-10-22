@@ -20,7 +20,7 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/setup") {
       try {
         const body = await request.json();
-        const { accountId, cfToken, botToken, repoUrl, adminPassword, botUsername } = body;
+        const { accountId, cfToken, botToken, botUsername, repoUrl, adminPassword } = body;
 
         if (!accountId || !cfToken || !botToken || !repoUrl || !adminPassword) {
           return jsonResponse({ success: false, error: "تمامی فیلدها الزامی هستند." }, 400);
@@ -32,12 +32,17 @@ export default {
         const log = [];
 
         log.push("Fetching source code from GitHub...");
-        const [workerCode, adminUiCode, i18nCode, migrationSql] = await Promise.all([
-          fetch(baseRepoUrl + "worker.js").then(r => { if(!r.ok) throw new Error("عدم دسترسی به worker.js"); return r.text(); }),
-          fetch(baseRepoUrl + "admin-ui.js").then(r => { if(!r.ok) throw new Error("عدم دسترسی به admin-ui.js"); return r.text(); }),
-          fetch(baseRepoUrl + "i18n.js").then(r => { if(!r.ok) throw new Error("عدم دسترسی به i18n.js"); return r.text(); }),
-          fetch(baseRepoUrl + "migration.sql").then(r => { if(!r.ok) throw new Error("عدم دسترسی به migration.sql"); return r.text(); })
-        ]);
+        const fetchFile = async (fileName) => {
+          const url = baseRepoUrl + fileName;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`عدم دسترسی به ${fileName} از آدرس: ${url} (کد خطا: ${res.status})`);
+          return await res.text();
+        };
+
+        const workerCode = await fetchFile("worker.js");
+        const adminUiCode = await fetchFile("admin-ui.js");
+        const i18nCode = await fetchFile("i18n.js");
+        const migrationSql = await fetchFile("migration.sql");
 
         log.push("Creating D1 Database...");
         const d1Name = `echosec-db-${Math.floor(Math.random() * 10000)}`;
@@ -58,14 +63,11 @@ export default {
         const kvId = kvRes.result.id;
 
         log.push("Executing SQL Migrations on D1...");
-        const sqlStatements = migrationSql.split(";").map(s => s.trim()).filter(s => s.length > 0);
-        for (const stmt of sqlStatements) {
-          const sqlRes = await cfApi(accountId, cfToken, `/d1/database/${dbId}/query`, {
-            method: "POST",
-            body: JSON.stringify({ sql: stmt })
-          });
-          if (!sqlRes.success) throw new Error("خطا در اجرای SQL: " + JSON.stringify(sqlRes.errors));
-        }
+        const sqlRes = await cfApi(accountId, cfToken, `/d1/database/${dbId}/query`, {
+          method: "POST",
+          body: JSON.stringify({ sql: migrationSql })
+        });
+        if (!sqlRes.success) throw new Error("خطا در اجرای SQL: " + JSON.stringify(sqlRes.errors));
 
         log.push("Generating Secrets...");
         const sessionSecret = generateRandomString(32);
