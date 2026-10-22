@@ -105,17 +105,22 @@ export default {
         if (!deployData.success) throw new Error("خطا در دیپلوی ورکر: " + JSON.stringify(deployData.errors));
 
         log.push("Setting Secrets on Deployed Worker...");
-        const secretsPayload = [
+        const secretsToSet = [
           { name: "BOT_TOKEN", text: botToken, type: "secret_text" },
           { name: "ADMIN_PASSWORD", text: adminPassword, type: "secret_text" },
           { name: "SESSION_SECRET", text: sessionSecret, type: "secret_text" },
           { name: "WEBHOOK_SECRET", text: webhookSecret, type: "secret_text" }
         ];
-        const secretsRes = await cfApi(accountId, cfToken, `/workers/scripts/${workerName}/secrets`, {
-          method: "PUT",
-          body: JSON.stringify(secretsPayload)
-        });
-        if (!secretsRes.success) throw new Error("خطا در تنظیم Secrets: " + JSON.stringify(secretsRes.errors));
+        
+        for (const secret of secretsToSet) {
+          const secretRes = await cfApi(accountId, cfToken, `/workers/scripts/${workerName}/secrets`, {
+            method: "PUT",
+            body: JSON.stringify(secret)
+          });
+          if (!secretRes.success) {
+            throw new Error(`خطا در تنظیم Secret ${secret.name}: ${JSON.stringify(secretRes.errors)}`);
+          }
+        }
 
         log.push("Setting Telegram Webhook...");
         const tgUrl = `https://api.telegram.org/bot${botToken}/setWebhook?url=${finalWorkerUrl}/webhook&secret_token=${webhookSecret}&drop_pending_updates=true`;
