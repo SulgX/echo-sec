@@ -83,7 +83,7 @@ export default {
           compatibility_flags: ["nodejs_compat"],
           bindings: [
             { type: "d1", name: "DB", id: dbId },
-            { type: "kv_namespace", name: "CACHE", id: kvId },
+            { type: "kv_namespace", name: "CACHE", namespace_id: kvId },
             { type: "plain_text", name: "BOT_USERNAME", text: botUsername || "EchoSecBot" },
             { type: "plain_text", name: "DEFAULT_LANG", text: "fa" },
             { type: "plain_text", name: "BIND_SESSION_IP", text: "1" }
